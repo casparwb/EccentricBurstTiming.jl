@@ -1,0 +1,10 @@
+name = "EccentricBurstTiming"
+uuid = "d2f0221f-2f3f-48a4-b948-365ab192ffff"
+version = "0.1.0"
+authors = ["Caspar William Bruenech <c.w.bruenech@proton.me>"]
+
+[deps]
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+
+[compat]
+Distributions = "0.25.120"
