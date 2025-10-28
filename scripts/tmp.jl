@@ -1,6 +1,11 @@
-function wolfram_to_julia(e)
+function wolfram_to_julia(filename)
 
-   filters = ["Pi" => π,
+   expression = readlines(filename)
+   expression = expression[2:end]
+   expression[1] = replace(expression[1], "InputForm[" => "")
+   expression[end] = expression[end][1:end-1]
+
+   filters = ["Pi" => "π",
               raw"""\[Omega]""" => "ω",
               raw"""\[CapitalOmega]""" => "Ω",
               raw"""\[Iota]""" => "ι",
@@ -12,14 +17,24 @@ function wolfram_to_julia(e)
               "Subscript[e, -1 + i]" => "eᵢ₋₁",
               "Subscript[p, -1 + i]" => "pᵢ₋₁",
               "Subscript[ωᵢ₋₁, 3]" => "ω₃",
+              "V₃" => "V₃ᵢ₋₁",
               "Sin" => "sin",
               "Cos" => "cos",
+              "Sqrt" => "sqrt",
               "[" => "(", 
-              "]" => ")"
+              "]" => ")",
+              "M" => "m₁₂"
               ]
 
-   for fl in filters
-      e = replace(e, fl)
+   for i in eachindex(expression)
+      e = expression[i]
+      for fl in filters
+         e = replace(e, fl)
+      end
+      expression[i] = e
    end
-   e
+
+   expression = join(strip.(expression))
+   write(replace(filename, ".wl" => "-jl.file"), expression)
+   nothing
 end

@@ -1,5 +1,17 @@
 using CairoMakie
 
+function example_run(;N=70, N_plot=20, args...)
+
+    m3 = get(args, :m3, 1e4)
+
+    m = BurstTimingModel(m3=0, w0=0)
+    m_p = BurstTimingModel(m3=m3, w0=0, i0=π/2);
+
+    evolve!(m, N)
+    evolve!(m_p, N)
+    plot_e_p_evolution(m_p, m, N_plot)
+end
+
 function plot_e_p_evolution(model_perturbed, model_unperturbed, N)
 
     e_perturbed = get_e_array(model_perturbed, N)
@@ -10,7 +22,11 @@ function plot_e_p_evolution(model_perturbed, model_unperturbed, N)
     p_unperturbed = get_p_array(model_unperturbed, N) ./ 1e-5
     t_unperturbed = get_t_array(model_unperturbed, N)
 
-    t_perturbed, t_unperturbed = line_up_burst_times(t_perturbed, t_unperturbed)
+    # t_perturbed ./= sqrt(model_perturbed.m3*model_perturbed.p3)
+    # t_perturbed ./= sqrt(EccentricBurstTiming.Constants.c/EccentricBurstTiming.Constants.G)
+
+    # t_perturbed, t_unperturbed = line_up_burst_times(t_perturbed, t_unperturbed)
+    time_shift = line_up_burst_times(t_perturbed, t_unperturbed)
     # return t_perturbed, t_unperturbed
     # t_perturbed = let t = t_perturbed
     #     t = t .- t[1]
@@ -23,6 +39,7 @@ function plot_e_p_evolution(model_perturbed, model_unperturbed, N)
     # end
 
 
+
     # aout = model_perturbed.R3*model_perturbed.M*Constants.Mconvert
     fig = Figure(size=(600, 800))
     ax_e = Axis(fig[1, 1], ylabel="Eccentricity", yticks=LinearTicks(7))
@@ -32,10 +49,10 @@ function plot_e_p_evolution(model_perturbed, model_unperturbed, N)
     linkxaxes!(ax_e, ax_p)
 
     cs = Makie.wong_colors()
-    sc = scatter!(ax_e, t_unperturbed, e_unperturbed, color=cs[1], label="unperturbed", markersize=15)
+    sc = scatter!(ax_e, t_unperturbed .+ time_shift, e_unperturbed, color=cs[1], label="unperturbed", markersize=15)
     scatter!(ax_e, t_perturbed, e_perturbed, color=cs[2], label="perturbed", markersize=10)
 
-    sc2 = scatter!(ax_p, t_unperturbed, p_unperturbed, color=cs[1], markersize=15)
+    sc2 = scatter!(ax_p, t_unperturbed .+ time_shift, p_unperturbed, color=cs[1], markersize=15)
     scatter!(ax_p, t_perturbed, p_perturbed, color=cs[2], markersize=10)
 
     translate!(sc, 0, 0, -10)

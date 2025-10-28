@@ -1,5 +1,7 @@
 module EccentricBurstTiming
 
+# using Unitful, UnitfulAstro
+
 export BurstTimingModel, evolve!, iterate, get_arrays, line_up_burst_times, get_e_array, get_p_array, get_t_array, get_w_array, get_V3_array
 
 include("constants.jl")
@@ -39,7 +41,6 @@ mutable struct BurstTimingModel{T, vecT}
     Ω₀::T
     ι₀::T
     V₃₀::T
-    # add Λ₃ : line of nodes 
 
     function BurstTimingModel(;e0 = 0.99, p0 = 30, t0 = 0, m12 = 1, eta = 0.20, e3=0.0,
                                 w0 = π/2, m3 = 1e7, R3 = 1.1e7, V3 = π/3, w3=0.0, i0=0.0, W0=0.0,
@@ -150,6 +151,8 @@ end
 
 function observed_burst_time_offsets_due_to_com_motion(model)
     # com_motion_induced_offset = @. model.R3/model.M*sin(model.iota)*cos(model.V3 + model.lambda)
+    # com_motion_induced_offset = self.R3 / self.M * np.sin(self.iota) * np.cos(np.array(self.V3) + self.Lambda)
+
     return @. model.m₃/model.M*model.p₃*sin(model.ι₃)/(1 + model.e*cos(model.V₃))*cos(model.V₃ + model.ω₃)
 end
 
