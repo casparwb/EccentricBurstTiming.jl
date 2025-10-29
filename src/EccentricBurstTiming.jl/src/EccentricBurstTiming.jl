@@ -1,6 +1,6 @@
 module EccentricBurstTiming
 
-# using Unitful, UnitfulAstro
+using Unitful, UnitfulAstro
 
 export BurstTimingModel, evolve!, iterate, get_arrays, line_up_burst_times, get_e_array, get_p_array, get_t_array, get_w_array, get_V3_array
 
@@ -8,43 +8,87 @@ include("constants.jl")
 include("utilities.jl")
 include("postprocessing.jl")
 include("equations.jl")
-mutable struct BurstTimingModel{T, vecT}
-    Ω₃::T # change to Ω₃
-    ι₃::T # change to ι₃
-    m₁₂::T 
-    m₃::T
-    M::T
-    η::T
-    η₃::T # change to μ₃
-    ω₃::T
-    p₃::T
-    e₃::T
+mutable struct BurstTimingModel{T, angT, massT, lengthT, timeT, floatT, vecangT, veclengthT, vectimeT, vecfloatT}
+    Ω₃::angT # change to Ω₃
+    ι₃::angT # change to ι₃
+    m₁₂::massT 
+    m₃::massT
+    M::massT
+    η::floatT
+    η₃::floatT # change to μ₃
+    ω₃::angT
+    p₃::lengthT
+    e₃::floatT
     sqrt_Mp₃⁻³::T
-    e::vecT
-    p::vecT
-    t::vecT
-    ω::vecT
-    Ω::vecT
-    ι::vecT #
-    V₃::vecT
-    eᵢ₋₁::T
-    pᵢ₋₁::T
-    tᵢ₋₁::T
-    ωᵢ₋₁::T
-    Ωᵢ₋₁::T
-    ιᵢ₋₁::T
-    V₃ᵢ₋₁::T
-    e₀::T
-    p₀::T
-    t₀::T
-    ω₀::T
-    Ω₀::T
-    ι₀::T
-    V₃₀::T
+    e::vecfloatT
+    p::veclengthT
+    t::vectimeT
+    ω::vecangT
+    Ω::vecangT
+    ι::vecangT #
+    V₃::vecangT
+    eᵢ₋₁::floatT
+    pᵢ₋₁::lengthT
+    tᵢ₋₁::timeT
+    ωᵢ₋₁::angT
+    Ωᵢ₋₁::angT
+    ιᵢ₋₁::angT
+    V₃ᵢ₋₁::angT
+    e₀::floatT
+    p₀::lengthT
+    t₀::timeT
+    ω₀::angT
+    Ω₀::angT
+    ι₀::angT
+    V₃₀::angT
 
-    function BurstTimingModel(;e0 = 0.99, p0 = 30, t0 = 0, m12 = 1, eta = 0.20, e3=0.0,
-                                w0 = π/2, m3 = 1e7, R3 = 1.1e7, V3 = π/3, w3=0.0, i0=0.0, W0=0.0,
-                                W3 = 0, iota3 = 0)
+    # function BurstTimingModel(;e0 = 0.99, 
+    #                            p0 = 30u"Rsun", 
+    #                            t0 = 0u"s", 
+    #                            m12 = 1u"Msun", 
+    #                            eta = 0.20,
+    #                            e3 = 0.0,
+    #                            w0 = (π/2)u"rad", 
+    #                            m3 = 1e7u"Msun", 
+    #                            R3 = 1.1e7u"Rsun", 
+    #                            V3 = (π/3)u"rad", 
+    #                            w3 = 0.0u"rad", 
+    #                            i0 = 0.0u"rad", W0=0.0u"rad",
+    #                            W3 = 0u"rad", iota3 = 0u"rad")
+    #     T1 = typeof(e0)
+    #     T2 = typeof(T1[])
+
+    #     p3 = R3*(1 - e3)
+    #     MT = m12 + m3
+    #     sqrt_Mp₃⁻³ = sqrt(MT/p3^3)
+
+    #     # T, angT, massT, lengthT, timeT, floatT, vecangT, 
+    #     # vecangT, veclengthT, vectimeT, vecfloatT
+    #     vecs = ([w0], [p0], [t0], [e0], [w0], [W0], [i0], [V3])
+    #     Ts = typeof.((sqrt_Mp₃⁻³, w0, m3, p0, t0, e0))
+    #     vecTs = typeof.(vecs)
+
+    #     # eta ≡ μ/m₁₂
+    #     return new{Ts..., vecTs...}(W3, iota3, m12, m3, m12 + m3, eta, m3 / m12, w3, p3, e3, sqrt_Mp₃⁻³,
+    #                         [e0], [p0], [t0], [w0], [W0], [i0], [V3],
+    #                         e0, p0, t0, w0, W0, i0, V3, 
+    #                         e0, p0, t0, w0, W0, i0, V3)
+    # end
+end
+
+    function BurstTimingModel(;e0 = 0.99, 
+                               p0 = 30.0u"Rsun", 
+                               t0 = 0.0u"s", 
+                               m12 = 1.0u"Msun", 
+                               eta = 0.20,
+                               e3 = 0.0,
+                               w0 = (π/2)u"rad", 
+                               m3 = 1e7u"Msun", 
+                               R3 = 1.1e7u"Rsun", 
+                               V3 = (π/3)u"rad", 
+                               w3 = 0.0u"rad", 
+                               i0 = 0.0u"rad", W0=0.0u"rad",
+                               W3 = 0.0u"rad", iota3 = 0.0u"rad")
         T1 = typeof(e0)
         T2 = typeof(T1[])
 
@@ -52,13 +96,19 @@ mutable struct BurstTimingModel{T, vecT}
         MT = m12 + m3
         sqrt_Mp₃⁻³ = sqrt(MT/p3^3)
 
+        # T, angT, massT, lengthT, timeT, floatT, vecangT, 
+        # vecangT, veclengthT, vectimeT, vecfloatT
+        # vecs = ([w0], [p0], [t0], [e0], [w0], [W0], [i0], [V3])
+        # Ts = typeof.((sqrt_Mp₃⁻³, w0, m3, p0, t0, e0))
+        # vecTs = typeof.(vecs)
+
         # eta ≡ μ/m₁₂
-        return new{T1, T2}(W3, iota3, m12, m3, m12 + m3, eta, m3 / m12, w3, p3, e3, sqrt_Mp₃⁻³,
-                            T1[e0], T1[p0], T1[t0], T1[w0], T1[W0], T1[i0], T1[V3],
-                            e0, p0, t0, w0, W0, i0, V3, 
-                            e0, p0, t0, w0, W0, i0, V3)
+        return BurstTimingModel(W3, iota3, m12, m3, m12 + m3, 
+                                eta, m3 / m12, w3, p3, e3, sqrt_Mp₃⁻³,
+                                [e0], [p0], [t0], [w0], [W0], [i0], [V3],
+                                e0, p0, t0, w0, W0, i0, V3, 
+                                e0, p0, t0, w0, W0, i0, V3)
     end
-end
 
 
 # function get_e_next(model)

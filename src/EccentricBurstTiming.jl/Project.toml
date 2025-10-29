@@ -5,6 +5,10 @@ authors = ["Caspar William Bruenech <c.w.bruenech@proton.me>"]
 
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+UnitfulAstro = "6112ee07-acf9-5e0f-b108-d242c714bf9f"
 
 [compat]
 Distributions = "0.25.120"
+Unitful = "1.25.1"
+UnitfulAstro = "1.2.2"

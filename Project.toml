@@ -6,10 +6,6 @@ EccentricBurstTiming = "d2f0221f-2f3f-48a4-b948-365ab192ffff"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Peaks = "18e31ff7-3703-566c-8e60-38913d67486b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
-Syzygy = "3771e0d5-fa61-4ae8-92e5-e80db42a5c95"
-Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
-UnitfulAstro = "6112ee07-acf9-5e0f-b108-d242c714bf9f"
 
 [sources]
 EccentricBurstTiming = {path = "src/EccentricBurstTiming.jl"}
-Syzygy = {path = "/home/cwbruenech/codes/development/Syzygy/Syzygy.jl"}
