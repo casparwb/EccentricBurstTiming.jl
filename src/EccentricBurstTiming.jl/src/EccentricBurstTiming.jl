@@ -8,9 +8,12 @@ include("constants.jl")
 include("utilities.jl")
 include("postprocessing.jl")
 include("equations.jl")
+
+using .Constants
+
 mutable struct BurstTimingModel{T, vecT}
-    Ω₃::T # change to Ω₃
-    ι₃::T # change to ι₃
+    Ω₃::T 
+    ι₃::T 
     m₁₂::T 
     m₃::T
     M::T
@@ -42,11 +45,21 @@ mutable struct BurstTimingModel{T, vecT}
     ι₀::T
     V₃₀::T
 
-    function BurstTimingModel(;e0 = 0.99, p0 = 30, t0 = 0, m12 = 1, eta = 0.20, e3=0.0,
-                                w0 = π/2, m3 = 1e7, R3 = 1.1e7, V3 = π/3, w3=0.0, i0=0.0, W0=0.0,
+    function BurstTimingModel(;e0 = 0.99, p0 = 0.0038, t0 = 0, m12 = 60, eta = 0.20, e3=0.0,
+                                w0 = π/2, m3 = 6e8, R3 = 1400, V3 = π/3, w3=0.0, i0=0.0, W0=0.0,
                                 W3 = 0, iota3 = 0)
         T1 = typeof(e0)
         T2 = typeof(T1[])
+
+        # m12 = SI_to_geometric_mass(m12)
+        # m3 =  SI_to_geometric_mass(m3)
+        # p0 = SI_to_geometric_length(p0)
+        # t0 = SI_to_geometric_time(t0)
+
+        p0 = p0*Rsun_to_m/(m12*Constants.Mconvert)
+        R3 = R3*Rsun_to_m/(m12*Constants.Mconvert)
+        m3 = m3/m12
+        t0 = t0/(m12 * Constants.Msolsec)
 
         p3 = R3*(1 - e3)
         MT = m12 + m3
@@ -60,62 +73,12 @@ mutable struct BurstTimingModel{T, vecT}
     end
 end
 
+SI_to_geometric_length(M, l) = l/(M*Constants.Mconvert)
+SI_to_geometric_time(M, t) = t/(M*Constants.Msolsec)
 
-# function get_e_next(model)
-#     two_body_update = (608*π/15*model.η*sqrt((model.M/model.pᵢ₋₁)^5))*(1 + 121/304*model.eᵢ₋₁ ^2)
-#     γ₃³ = γ(e3, V3)^3
-#     three_body_perturbation = if model.m₃ > zero(model.m₃)
-#         15π/2*model.η₃*model.Cₚ³*γ₃³/(model.M / model.pᵢ₋₁)^3*sin(2*(model.V₃ᵢ₋₁ - model.ωᵢ₋₁))/sqrt((1 - model.eᵢ₋₁^2))^5
-#     else
-#         0.0
-#     end
+geometric_to_SI_length(M, l) = l*M*Constants.Mconvert
+geometric_to_SI_time(M, t) = t*(M*Constants.Msolsec)
 
-#     return model.eᵢ₋₁*(1 - two_body_update - three_body_perturbation)
-# end
-
-# function get_p_next(model)
-#     two_body_update = (128π/5*model.η*sqrt((model.M/model.pᵢ₋₁)^5))*(1 + 7/8*model.eᵢ₋₁^2)
-#     γ₃³ = γ(e3, V3)^3    
-#     three_body_perturbation = if model.m₃ > zero(model.m₃)
-#         15π*model.η₃*model.Cₚ³*γ₃³/(model.M/model.pᵢ₋₁)^3*model.eᵢ₋₁^2*sin(2*(model.V₃ᵢ₋₁ - model.ωᵢ₋₁))/sqrt((1 - model.eᵢ₋₁^2))^7
-#     else
-#         0.0
-#     end
-
-#     return model.pᵢ₋₁*(1 - two_body_update + three_body_perturbation)
-# end
-
-# function get_t_next(model)
-#     Acoeff = Utils.get_Acoeff(model.η, model.pᵢ₋₁, model.M, model.eᵢ₋₁ )
-#     Bcoeff = Utils.get_Bcoeff(model.eᵢ₋₁ )
-#     # println(Acoeff, " ", Bcoeff)
-#     two_body_update = 2π/√model.M*sqrt((model.pᵢ₋₁ + model.η*sqrt(model.M^5/model.pᵢ₋₁^3)*Acoeff) / 
-#                                         (1 - model.eᵢ₋₁^2 + model.η*sqrt((model.M/model.pᵢ₋₁)^5)*Bcoeff))^3
-#     γ₃³ = γ(e3, V3)^3    
-#     three_body_perturbation = if model.m₃ > zero(model.m₃)
-#         1 + model.η₃*model.Cₚ³*γ₃³/(model.M/model.pᵢ₋₁)^3*(5*(4 + (3*model.eᵢ₋₁^2)) + 
-#         (96 + (51 * model.eᵢ₋₁^2))*cos(2*(model.V₃ᵢ₋₁ - model.ωᵢ₋₁)))/(16*(1 - model.eᵢ₋₁ ^2)^3)
-#     else
-#         1.0
-#     end
-
-#     return model.tᵢ₋₁ + (two_body_update * three_body_perturbation)
-# end
-
-# function get_w_next(model)
-#     γ₃³ = γ(e3, V3)^3
-#     three_body_perturbation = if model.m₃ > zero(model.m₃)
-#         3π/2*model.η₃*model.Cₚ³*γ₃³/(model.M/model.pᵢ₋₁)^3*(1 + (5cos(2*(model.V₃ᵢ₋₁ - model.ωᵢ₋₁))))/sqrt((1 - model.eᵢ₋₁^2))^5
-#     else
-#         0
-#     end
-
-#     return model.ωᵢ₋₁ + three_body_perturbation
-# end
-
-# function get_V3_next(model)
-#     return model.V₃ᵢ₋₁ + model.sqrt_Mp₃⁻³*(γ(model.e₃, model.V₃ᵢ₋₁)^2*(model.t[end] - model.tᵢ₋₁))
-# end
 
 function iterate!(model::BurstTimingModel)
     
@@ -166,12 +129,12 @@ function evolve!(model::BurstTimingModel, n_bursts)
             #        ((1 + model.eᵢ₋₁ ) * np.power(model.M / model.eᵢ₋₁ , 0.5)) ** 11,
             #         1/3)) / model.R3:
             R3 = get_R(model)
-            if iszero(model.m₃) || 0.1 > (cbrt((1 + model.eᵢ₋₁ )^(13/2)*model.η₃/(1 - model.eᵢ₋₁ )^2/model.η/((1 + model.eᵢ₋₁ )*√(model.m₁₂ / model.eᵢ₋₁ ))^11)) / R3
+            if iszero(model.m₃) || 0.1 > (cbrt((1 + model.eᵢ₋₁ )^(13/2)*model.η₃/(1 - model.eᵢ₋₁ )^2/model.η/((1 + model.eᵢ₋₁ )*√(1 / model.eᵢ₋₁ ))^11)) / R3
                 iterate!(model)
             end
             n += 1
         else
-            n = Nbursts + 1
+            n = n_bursts + 1
         end
     end
     # Cut off last point to ensure within region of validity
@@ -198,6 +161,8 @@ function Base.getproperty(m::BurstTimingModel, s::Symbol)
     s_str = replace(s_str, "W" => "Ω")
     s_str = replace(s_str, "0" => "₀")
     s_str = replace(s_str, "3" => "₃")
+    s_str = replace(s_str, "1" => "₁")
+    s_str = replace(s_str, "2" => "₂")
     return getfield(m, Symbol(s_str))
 end
 

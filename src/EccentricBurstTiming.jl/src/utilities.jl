@@ -4,11 +4,11 @@ include("constants.jl")
 
 using Distributions: Normal, pdf
 
-function get_a0(eta, pprev, m)
+function get_a0(eta, pprev, m=1)
     return Constants.a01 + Constants.a02*(4eta)^Constants.a03*(0.1*pprev/m)^Constants.a04
 end
 
-function get_Acoeff(eta, pprev, m, eprev)
+function get_Acoeff(eta, pprev, eprev, m=1)
     return get_a0(eta, pprev, m) + Constants.a1*(1 - eprev^2)
 end
 

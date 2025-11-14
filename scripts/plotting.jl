@@ -5,7 +5,7 @@ function example_run(;N=70, N_plot=20, args...)
     m3 = get(args, :m3, 1e4)
 
     m = BurstTimingModel(m3=0, w0=0)
-    m_p = BurstTimingModel(m3=m3, w0=0, i0=π/2);
+    m_p = BurstTimingModel(m3=m3, w0=0, i0=0);
 
     evolve!(m, N)
     evolve!(m_p, N)
@@ -15,11 +15,11 @@ end
 function plot_e_p_evolution(model_perturbed, model_unperturbed, N)
 
     e_perturbed = get_e_array(model_perturbed, N)
-    p_perturbed = get_p_array(model_perturbed, N) ./ 1e-5
+    p_perturbed = get_p_array(model_perturbed, N) .* EccentricBurstTiming.Constants.m_to_Rsun
     t_perturbed = get_t_array(model_perturbed, N)
 
     e_unperturbed = get_e_array(model_unperturbed, N)
-    p_unperturbed = get_p_array(model_unperturbed, N) ./ 1e-5
+    p_unperturbed = get_p_array(model_unperturbed, N) .* EccentricBurstTiming.Constants.m_to_Rsun
     t_unperturbed = get_t_array(model_unperturbed, N)
 
     # t_perturbed ./= sqrt(model_perturbed.m3*model_perturbed.p3)
@@ -43,7 +43,7 @@ function plot_e_p_evolution(model_perturbed, model_unperturbed, N)
     # aout = model_perturbed.R3*model_perturbed.M*Constants.Mconvert
     fig = Figure(size=(600, 800))
     ax_e = Axis(fig[1, 1], ylabel="Eccentricity", yticks=LinearTicks(7))
-    ax_p = Axis(fig[2, 1], xlabel="Time [s]", ylabel=L"Semi-latus rectum [au / $10^{-5}$]")
+    ax_p = Axis(fig[2, 1], xlabel="Time [s]", ylabel=L"Semi-latus rectum [R$_\odot$]")
 
     hidexdecorations!(ax_e)
     linkxaxes!(ax_e, ax_p)

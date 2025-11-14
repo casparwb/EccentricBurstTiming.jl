@@ -1,8 +1,8 @@
 
 
 get_e_array(model, N) = model.e[end-min(N, length(model.e)-1):end]
-get_p_array(model, N) = model.p[end-min(N, length(model.p)-1):end] .* 60*Constants.Mconvert
-get_t_array(model, N) = model.t[end-min(N, length(model.t)-1):end] .* 60*Constants.Msolsec
+get_p_array(model, N) = model.p[end-min(N, length(model.p)-1):end] .|> x -> geometric_to_SI_length(model.m₁₂, x)#.* Constants.Mconvert
+get_t_array(model, N) = model.t[end-min(N, length(model.t)-1):end] .|> x -> geometric_to_SI_time(model.m₁₂, x)#.* Constants.Msolsec
 get_w_array(model, N) = model.w[end-min(N, length(model.w)-1):end]
 get_W_array(model, N) = model.Ω[end-min(N, length(model.Ω)-1):end]
 get_i_array(model, N) = model.i[end-min(N, length(model.i)-1):end]
