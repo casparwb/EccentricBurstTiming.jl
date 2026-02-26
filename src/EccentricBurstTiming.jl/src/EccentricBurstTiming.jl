@@ -2,7 +2,8 @@ module EccentricBurstTiming
 
 # using Unitful, UnitfulAstro
 
-export BurstTimingModel, evolve!, iterate, get_arrays, line_up_burst_times, get_e_array, get_p_array, get_t_array, get_w_array, get_V3_array
+export BurstTimingModel, evolve!, iterate, get_arrays, line_up_burst_times, get_e_array, get_p_array, get_t_array, get_w_array, get_V3_array, get_a_array
+export get_e, get_p, get_t, get_w, get_V3, get_a, get_masses
 
 include("constants.jl")
 include("utilities.jl")
@@ -12,9 +13,9 @@ include("equations.jl")
 using .Constants
 
 mutable struct BurstTimingModel{T, vecT}
-    Ω₃::T 
-    ι₃::T 
-    m₁₂::T 
+    Ω₃::T
+    ι₃::T
+    m₁₂::T
     m₃::T
     M::T
     η::T
@@ -45,134 +46,225 @@ mutable struct BurstTimingModel{T, vecT}
     ι₀::T
     V₃₀::T
 
-    function BurstTimingModel(;e0 = 0.99, p0 = 0.0038, t0 = 0, m12 = 60, eta = 0.20, e3=0.0,
-                                w0 = π/2, m3 = 6e8, R3 = 1400, V3 = π/3, w3=0.0, i0=0.0, W0=0.0,
-                                W3 = 0, iota3 = 0)
+    function BurstTimingModel(;
+            e0 = 0.99, a0 = 0.19, t0 = 0, m12 = 60, eta = 0.2, e3 = 0.0,
+            w0 = 0.0, m3 = 6.0e8, R3 = 1400, V3 = π / 3, w3 = 0.0, i0 = 0.0, W0 = 0.0,
+            W3 = 0, iota3 = 0
+        )
         T1 = typeof(e0)
         T2 = typeof(T1[])
 
-        # m12 = SI_to_geometric_mass(m12)
-        # m3 =  SI_to_geometric_mass(m3)
-        # p0 = SI_to_geometric_length(p0)
-        # t0 = SI_to_geometric_time(t0)
+        p0 = (1 - e0^2) * a0 * Rsun_to_m / (m12 * Constants.Mconvert)
+        R3 = R3 * Rsun_to_m / (m12 * Constants.Mconvert)
+        m3 = m3 / m12
+        t0 = t0 / (m12 * Constants.Msolsec)
 
-        p0 = p0*Rsun_to_m/(m12*Constants.Mconvert)
-        R3 = R3*Rsun_to_m/(m12*Constants.Mconvert)
-        m3 = m3/m12
-        t0 = t0/(m12 * Constants.Msolsec)
-
-        p3 = R3*(1 - e3)
+        p3 = R3 * (1 - e3)
         MT = m12 + m3
-        sqrt_Mp₃⁻³ = sqrt(MT/p3^3)
+        sqrt_Mp₃⁻³ = sqrt(MT / p3^3)
 
         # eta ≡ μ/m₁₂
-        return new{T1, T2}(W3, iota3, m12, m3, m12 + m3, eta, m3 / m12, w3, p3, e3, sqrt_Mp₃⁻³,
-                            T1[e0], T1[p0], T1[t0], T1[w0], T1[W0], T1[i0], T1[V3],
-                            e0, p0, t0, w0, W0, i0, V3, 
-                            e0, p0, t0, w0, W0, i0, V3)
+        return new{T1, T2}(
+            W3, iota3, m12, m3, m12 + m3, eta, m3 / m12, w3, p3, e3, sqrt_Mp₃⁻³,
+            T1[e0], T1[p0], T1[t0], T1[w0], T1[W0], T1[i0], T1[V3],
+            e0, p0, t0, w0, W0, i0, V3,
+            e0, p0, t0, w0, W0, i0, V3
+        )
     end
 end
 
-SI_to_geometric_length(M, l) = l/(M*Constants.Mconvert)
-SI_to_geometric_time(M, t) = t/(M*Constants.Msolsec)
+function get_masses(model::BurstTimingModel)
+    M = model.m₁₂
+    μ = model.η*M
 
-geometric_to_SI_length(M, l) = l*M*Constants.Mconvert
-geometric_to_SI_time(M, t) = t*(M*Constants.Msolsec)
+    fac = √(M^2 - 4μ*M)/2
 
+    return M/2 + fac, M/2 - fac
+end
 
-function iterate!(model::BurstTimingModel)
+SI_to_geometric_length(M, l) = l / (M * Constants.Mconvert)
+SI_to_geometric_time(M, t) = t / (M * Constants.Msolsec)
+
+geometric_to_SI_length(M, l) = l * M * Constants.Mconvert
+geometric_to_SI_time(M, t) = t * (M * Constants.Msolsec)
+
+# const SYMS = (:η, :ιᵢ₋₁, :V₃ᵢ₋₁, :Ωᵢ₋₁, :ωᵢ₋₁, :ω₃, :eᵢ₋₁, :pᵢ₋₁, :m₃, :tᵢ₋₁, :p₃, :e₃)
+# get_params(m) = map(x -> getfield(m, x), SYMS)
+
+function iterate!(model::BurstTimingModel; do_outer_orbit = true, save_params=true)
+
+    (; η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, tᵢ₋₁, p₃, e₃) = model
+    # η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, tᵢ₋₁, p₃, e₃ = get_params(model)
+
+    R = get_R(p₃, e₃, V₃ᵢ₋₁)
+
+    e_next = get_e_next(η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, R)
+    p_next = get_p_next(η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, R)
+    t_next = get_t_next(η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, R, tᵢ₋₁)
+    ω_next = get_ω_next(η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, R)
+    ι_next = get_ι_next(η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, R)
+    Ω_next = get_Ω_next(η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, R)
+
+    V₃_next = if do_outer_orbit
+        get_V3_next(model.sqrt_Mp₃⁻³, e₃, V₃ᵢ₋₁, model.t[end], tᵢ₋₁)
+    else
+        model.V₃ᵢ₋₁
+    end
     
-    e_next = get_e_next(model)
-    push!(model.e, e_next)
-    
-    p_next = get_p_next(model)
-    push!(model.p, p_next)
-    
-    t_next = get_t_next(model)
-    push!(model.t, t_next)
-    
-    ω_next = get_ω_next(model)
-    push!(model.ω, ω_next)
+    if save_params
+        push!(model.e, e_next)
+        push!(model.p, p_next)
+        push!(model.t, t_next)
+        push!(model.ω, ω_next)
+        push!(model.ι, ι_next)
+        push!(model.Ω, Ω_next)
+        push!(model.V₃, V₃_next)
+    end
 
-    ι_next = get_ι_next(model)
-    push!(model.ι, ι_next)
-
-    Ω_next = get_Ω_next(model)
-    push!(model.Ω, Ω_next)
-    
-    V₃_next = get_V3_next(model)
-    push!(model.V₃, V₃_next)
-
-    model.eᵢ₋₁  = e_next
+    model.eᵢ₋₁ = e_next
     model.pᵢ₋₁ = p_next
     model.tᵢ₋₁ = t_next
     model.ωᵢ₋₁ = ω_next
+    model.Ωᵢ₋₁ = Ω_next
     model.V₃ᵢ₋₁ = V₃_next
     model.ιᵢ₋₁ = ι_next
-    nothing
+    return nothing
 end
 
 function observed_burst_time_offsets_due_to_com_motion(model)
     # com_motion_induced_offset = @. model.R3/model.M*sin(model.iota)*cos(model.V3 + model.lambda)
     # com_motion_induced_offset = self.R3 / self.M * np.sin(self.iota) * np.cos(np.array(self.V3) + self.Lambda)
 
-    return @. model.m₃/model.M*model.p₃*sin(model.ι₃)/(1 + model.e*cos(model.V₃))*cos(model.V₃ + model.ω₃)
+    return @. model.m₃ / model.M * model.p₃ * sin(model.ι₃) / (1 + model.e * cos(model.V₃)) * cos(model.V₃ + model.ω₃)
 end
 
-function evolve!(model::BurstTimingModel, n_bursts)
+function evolve!(model::BurstTimingModel, n_bursts; t_max=Inf, e_min=0.7, f_GW_max=Inf, do_outer_orbit = true, verbose=false, save_params=true)
     n = 0
-    while (n <= n_bursts) && (model.eᵢ₋₁  > 0.7) && (model.eᵢ₋₁  < 1.0) && (model.pᵢ₋₁ > 0)
-        if model.pᵢ₋₁ > 2*(3 + model.eᵢ₋₁ )
-            #if model.m₃ == 0.0 || 0.1 > (np.power(
-            #        (1 + model.eᵢ₋₁ ) ** 9 * model.η₃ /
-            #        (1 - model.eᵢ₋₁ ) ** 2 /
-            #        ((1 + model.eᵢ₋₁ ) * np.power(model.M / model.eᵢ₋₁ , 0.5)) ** 11,
-            #         1/3)) / model.R3:
+
+    # to_s = (model.m12 * Constants.Msolsec)
+    t_convert = (model.m₁₂ * Constants.Msolsec)
+    s_to_code_units = 1/t_convert
+    t_max = t_max*s_to_code_units
+
+    π_inv = 1/π
+
+    f_GW_max_code_units = t_convert*f_GW_max
+    while (n <= n_bursts) 
+
+        if model.tᵢ₋₁ >= t_max 
+            verbose && @info "Stopping condition: t >= $t_max"
+            break
+        end
+
+        if (model.eᵢ₋₁ < e_min) 
+            verbose && @info "Stopping condition: Eccentricity < $e_min"
+            break
+        end
+
+        if (model.eᵢ₋₁ > 1.0) 
+            verbose && @info "Stopping condition: Eccentricity > 1"
+            break
+        end
+
+        if (model.pᵢ₋₁ < 0)
+            verbose && @info "Stopping condition: SLR > 0"
+            break
+        end
+
+        if (π_inv*(1 + model.eᵢ₋₁)^(1.195)/sqrt(model.pᵢ₋₁^3)) >= f_GW_max_code_units
+            verbose && @info "Stopping condition: fGW > fGW_max"
+            break
+        end
+
+        if model.pᵢ₋₁ > 2 * (3 + model.eᵢ₋₁)
             R3 = get_R(model)
-            if iszero(model.m₃) || 0.1 > (cbrt((1 + model.eᵢ₋₁ )^(13/2)*model.η₃/(1 - model.eᵢ₋₁ )^2/model.η/((1 + model.eᵢ₋₁ )*√(1 / model.eᵢ₋₁ ))^11)) / R3
-                iterate!(model)
+            if iszero(model.m₃) || 0.1 > (cbrt((1 + model.eᵢ₋₁)^(13 / 2) * model.η₃ / (1 - model.eᵢ₋₁)^2 / model.η / ((1 + model.eᵢ₋₁) * √(1 / model.eᵢ₋₁))^11)) / R3
+                iterate!(model, do_outer_orbit = do_outer_orbit, save_params=save_params)
             end
             n += 1
         else
             n = n_bursts + 1
         end
     end
+
     # Cut off last point to ensure within region of validity
-    model.e = model.e[1:end-1]
-    model.p = model.p[1:end-1]
-    model.t = model.t[1:end-1]
-    model.ω = model.ω[1:end-1]
-    model.ι = model.ι[1:end-1]
-    model.Ω = model.Ω[1:end-1]
-    model.V₃ = model.V₃[1:end-1]
+
+    region_of_validity = min(findlast(x -> x < one(x), model.e), findlast(x -> x > zero(x), model.p))
+
+    model.e = model.e[1:region_of_validity]
+    model.p = model.p[1:region_of_validity]
+    model.t = model.t[1:region_of_validity]
+    model.ω = model.ω[1:region_of_validity]
+    model.ι = model.ι[1:region_of_validity]
+    model.Ω = model.Ω[1:region_of_validity]
+    model.V₃ = model.V₃[1:region_of_validity]
 
     # Add observed time offset due to system inclination
     if model.m₃ > 0
         additional_offset = observed_burst_time_offsets_due_to_com_motion(model)
         model.t .-= additional_offset
     end
-    # Normalise so that first burst happens at time 0
-    #model.t = [x - model.t[0] for x in model.t]
+    
+    nothing
 end
 
-function Base.getproperty(m::BurstTimingModel, s::Symbol)
-    s_str = string(s)
-    s_str = replace(s_str, "w" => "ω")
-    s_str = replace(s_str, "W" => "Ω")
-    s_str = replace(s_str, "0" => "₀")
-    s_str = replace(s_str, "3" => "₃")
-    s_str = replace(s_str, "1" => "₁")
-    s_str = replace(s_str, "2" => "₂")
-    return getfield(m, Symbol(s_str))
+function evolve_to_fGW!(model::BurstTimingModel, fGW_max; max_bursts=1_000, do_outer_orbit = true)
+    M_SI = model.m₁₂ * Constants.Msol
+
+    burst_number = 1
+    while burst_number < max_bursts
+        iterate!(model, do_outer_orbit = do_outer_orbit, save_params=false)
+
+        model.e[1] = model.eᵢ₋₁
+        model.p[1] = model.pᵢ₋₁
+        model.t[1] = model.tᵢ₋₁
+        model.ω[1] = model.ωᵢ₋₁
+        model.Ω[1] = model.Ωᵢ₋₁
+        model.V₃[1] = model.V₃ᵢ₋₁
+        model.ι[1] = model.ιᵢ₋₁
+
+        fGW = peak_f_GW(model)
+        if fGW >= fGW_max
+            break
+        end
+
+        burst_number += 1
+    end
+
+    model.e₀ = model.eᵢ₋₁
+    model.p₀ = model.pᵢ₋₁
+    model.t₀ = model.tᵢ₋₁
+    model.ω₀ = model.ωᵢ₋₁
+    model.Ω₀ = model.Ωᵢ₋₁
+    model.V₃₀ = model.V₃ᵢ₋₁
+    model.ι₀ = model.ιᵢ₋₁
+
 end
+
+# function Base.getproperty(m::BurstTimingModel, s::Symbol)
+#     s_str = string(s)
+#     s_str = replace(s_str, "w" => "ω")
+#     s_str = replace(s_str, "W" => "Ω")
+#     s_str = replace(s_str, "0" => "₀")
+#     s_str = replace(s_str, "3" => "₃")
+#     s_str = replace(s_str, "1" => "₁")
+#     s_str = replace(s_str, "2" => "₂")
+#     return getfield(m, Symbol(s_str))
+# end
 
 function Base.show(io::IO, m::BurstTimingModel)
     props_to_show = (:m₁₂, :η, :e₀, :p₀, :ω₀, :Ω₀, :ι₀, :m₃, :ω₃, :p₃, :e₃, :V₃₀, :Ω₃, :ι₃)
     for prop in props_to_show
         println(io, prop, " ", getproperty(m, prop))
     end
-    nothing
+
+    return nothing
 end
 
+function peak_f_GW(M, e, p)
+    return sqrt(Constants.G*M)/π*(1 + e)^(1.195)/sqrt(p^3)
+end
+
+peak_f_GW(m::BurstTimingModel, idx=1) = peak_f_GW(m.m₁₂ * Constants.Msol, get_e(m, idx), get_p(m, idx))
 
 end # module EccentricBurstTiming

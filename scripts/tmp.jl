@@ -35,6 +35,6 @@ function wolfram_to_julia(filename)
    end
 
    expression = join(strip.(expression))
-   write(replace(filename, ".wl" => "-jl.file"), expression)
+   write(replace(filename, ".wl" => "-jl.jl"), expression)
    nothing
 end

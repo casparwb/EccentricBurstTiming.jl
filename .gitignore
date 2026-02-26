@@ -2,7 +2,10 @@ data
 venv
 figures
 mathematica
-notebooks
+# notebooks
 Manifest.toml
 docs
-src/EccentricBurstTiming
+src/py_eccentric_burst_timing
+src/TRES
+src/Syzygy.jl
+src/CompactBinaryEvolution
