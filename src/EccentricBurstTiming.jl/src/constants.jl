@@ -2,16 +2,6 @@ module Constants
 
 export G, c, c⁻¹, Gc⁻², G⁻¹c², Msun_to_kg, kg_to_Msun, Rsun_to_m, m_to_Rsun
 
-const a01 = 14.17740665941005
-const a02 = -0.2369034013387491
-const a03 = 0.9624394843324173
-const a04 = -2.415911957053192
-const a1 = -16.587168717092286
-
-const b0 = 170π / 3
-const b1 = -139.376624104913
-const b2 = -1.088644959382641
-
 const G = 6.67408e-11 #u"m^3*kg^-1*s^-1"
 const c = 299792458.0 #u"Msun"
 const G_solar = 3.9413556368747037e-7 # R⊙^3 s^-2 M⊙^-1

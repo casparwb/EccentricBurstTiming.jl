@@ -47,7 +47,7 @@ mutable struct BurstTimingModel{T, vecT}
     V₃₀::T
 
     function BurstTimingModel(;
-            e0 = 0.99, a0 = 0.19, t0 = 0, m12 = 60, eta = 0.2, e3 = 0.0,
+            e0 = 0.99, a0 = 0.19, t0 = nothing, m12 = 60, eta = 0.2, e3 = 0.0,
             w0 = 0.0, m3 = 6.0e8, R3 = 1400, V3 = π / 3, w3 = 0.0, i0 = 0.0, W0 = 0.0,
             W3 = 0, iota3 = 0
         )
@@ -57,7 +57,13 @@ mutable struct BurstTimingModel{T, vecT}
         p0 = (1 - e0^2) * a0 * Rsun_to_m / (m12 * Constants.Mconvert)
         R3 = R3 * Rsun_to_m / (m12 * Constants.Mconvert)
         m3 = m3 / m12
-        t0 = t0 / (m12 * Constants.Msolsec)
+
+        t0 = if isnothing(t0)
+            P = 2π * √((p0/(1 - e0^2))^3)
+            P/2
+        else
+            t0 / (m12 * Constants.Msolsec)
+        end
 
         p3 = R3 * (1 - e3)
         MT = m12 + m3
@@ -91,7 +97,7 @@ geometric_to_SI_time(M, t) = t * (M * Constants.Msolsec)
 # const SYMS = (:η, :ιᵢ₋₁, :V₃ᵢ₋₁, :Ωᵢ₋₁, :ωᵢ₋₁, :ω₃, :eᵢ₋₁, :pᵢ₋₁, :m₃, :tᵢ₋₁, :p₃, :e₃)
 # get_params(m) = map(x -> getfield(m, x), SYMS)
 
-function iterate!(model::BurstTimingModel; do_outer_orbit = true, save_params=true)
+function iterate!(model::BurstTimingModel; do_outer_orbit = true, save_params=true, explicit=false)
 
     (; η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, tᵢ₋₁, p₃, e₃) = model
     # η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, tᵢ₋₁, p₃, e₃ = get_params(model)
@@ -100,10 +106,14 @@ function iterate!(model::BurstTimingModel; do_outer_orbit = true, save_params=tr
 
     e_next = get_e_next(η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, R)
     p_next = get_p_next(η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, R)
-    t_next = get_t_next(η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, R, tᵢ₋₁)
     ω_next = get_ω_next(η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, R)
     ι_next = get_ι_next(η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, R)
     Ω_next = get_Ω_next(η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, R)
+    t_next = if explicit 
+        get_t_next_explicit(η, ιᵢ₋₁, V₃ᵢ₋₁, Ωᵢ₋₁, ωᵢ₋₁, ω₃, eᵢ₋₁, pᵢ₋₁, m₃, R, tᵢ₋₁) 
+    else
+        get_t_next_implicit(η, ι_next, V₃_next, Ω_next, ω_next, ω₃, e_next, p_next, m₃, R, tᵢ₋₁)
+    end
 
     V₃_next = if do_outer_orbit
         get_V3_next(model.sqrt_Mp₃⁻³, e₃, V₃ᵢ₋₁, model.t[end], tᵢ₋₁)
@@ -138,17 +148,25 @@ function observed_burst_time_offsets_due_to_com_motion(model)
     return @. model.m₃ / model.M * model.p₃ * sin(model.ι₃) / (1 + model.e * cos(model.V₃)) * cos(model.V₃ + model.ω₃)
 end
 
-function evolve!(model::BurstTimingModel, n_bursts; t_max=Inf, e_min=0.7, f_GW_max=Inf, do_outer_orbit = true, verbose=false, save_params=true)
-    n = 0
+function evolve!(model::BurstTimingModel, n_bursts; 
+        t_max=Inf, e_min=0.7, 
+        f_GW_max=Inf, do_outer_orbit = true, 
+        verbose=false, save_params=true,
+        fGW_saving_threshold=Inf, save_every=1,
+        explicit=false
+    )
 
-    # to_s = (model.m12 * Constants.Msolsec)
     t_convert = (model.m₁₂ * Constants.Msolsec)
+    fGW_saving_threshold = isinf(fGW_saving_threshold) ? fGW_saving_threshold : t_convert*fGW_saving_threshold
+    
     s_to_code_units = 1/t_convert
     t_max = t_max*s_to_code_units
-
+    
     π_inv = 1/π
-
+    
     f_GW_max_code_units = t_convert*f_GW_max
+
+    n = 0
     while (n <= n_bursts) 
 
         if model.tᵢ₋₁ >= t_max 
@@ -171,15 +189,18 @@ function evolve!(model::BurstTimingModel, n_bursts; t_max=Inf, e_min=0.7, f_GW_m
             break
         end
 
-        if (π_inv*(1 + model.eᵢ₋₁)^(1.195)/sqrt(model.pᵢ₋₁^3)) >= f_GW_max_code_units
+        gw_freq = (π_inv*(1 + model.eᵢ₋₁)^(1.195)/sqrt(model.pᵢ₋₁^3))
+        if gw_freq >= f_GW_max_code_units
             verbose && @info "Stopping condition: fGW > fGW_max"
             break
         end
 
+        save_params_ = (save_params || gw_freq > fGW_saving_threshold) && iszero(n%save_every)
+        
         if model.pᵢ₋₁ > 2 * (3 + model.eᵢ₋₁)
             R3 = get_R(model)
             if iszero(model.m₃) || 0.1 > (cbrt((1 + model.eᵢ₋₁)^(13 / 2) * model.η₃ / (1 - model.eᵢ₋₁)^2 / model.η / ((1 + model.eᵢ₋₁) * √(1 / model.eᵢ₋₁))^11)) / R3
-                iterate!(model, do_outer_orbit = do_outer_orbit, save_params=save_params)
+                iterate!(model, do_outer_orbit = do_outer_orbit, save_params=save_params_, explicit=explicit)
             end
             n += 1
         else

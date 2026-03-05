@@ -4,16 +4,27 @@ include("constants.jl")
 
 using Distributions: Normal, pdf
 
+const a₀₁ = 14.17740665941005
+const a₀₂ = -0.2369034013387491
+const a₀₃ = 0.9624394843324173
+const a₀₄ = -2.415911957053192
+const a₁ = -16.587168717092286
+
+const b₀ = 170π / 3
+const b₁ = -139.376624104913
+const b₂ = -1.088644959382641
+
+
 function get_A₀(eta, pprev, m = 1)
-    return Constants.a01 + Constants.a02 * (4eta)^Constants.a03 * (0.1 * pprev / m)^Constants.a04
+    return a₀₁ + a₀₂ * (4eta)^a₀₃ * (0.1pprev / m)^a₀₄
 end
 
 function get_Acoeff(eta, pprev, eprev, m = 1)
-    return get_A₀(eta, pprev, m) + Constants.a1 * (1 - eprev^2)
+    return get_A₀(eta, pprev, m) + a₁ * (1 - eprev^2)
 end
 
 function get_Bcoeff(eprev)
-    return Constants.b0 + Constants.b1 * (1 - eprev^2) + Constants.b2 * (1 - eprev^2)^2
+    return b₀ + b₁ * (1 - eprev^2) + b₂ * (1 - eprev^2)^2
 end
 
 function convolve!(w, u, v)
