@@ -46,6 +46,7 @@ mutable struct BurstTimingModel{T, vecT}
     Ω₀::T
     ι₀::T
     V₃₀::T
+    status::Symbol
 
     function BurstTimingModel(;
             e0 = 0.99, a0 = 0.19, t0 = nothing, m12 = 60, eta = 0.2, e3 = 0.0,
@@ -75,7 +76,7 @@ mutable struct BurstTimingModel{T, vecT}
             W3, iota3, m12, m3, MT, eta, m3 / 1, w3, p3, e3, sqrt_Mp₃⁻³,
             T1[e0], T1[p0], T1[t0], T1[w0], T1[W0], T1[i0], T1[V3],
             e0, p0, t0, w0, W0, i0, V3,
-            e0, p0, t0, w0, W0, i0, V3
+            e0, p0, t0, w0, W0, i0, V3, :Null
         )
     end
 end
@@ -182,36 +183,44 @@ function evolve!(model::BurstTimingModel, n_bursts;
     n = 0
 
     η_ratio = model.η₃/model.η
+
+    model.status = :Evolved
     while (n <= n_bursts) 
 
         if model.tᵢ₋₁ >= t_max 
             verbose && @info "Stopping condition: t >= $t_max"
+            model.status = :tmax
             break
         end
 
         if (model.eᵢ₋₁ < e_min) 
             verbose && @info "Stopping condition: Eccentricity < $e_min"
+            model.status = :e_leq_min
             break
         end
 
         if (model.eᵢ₋₁ > 1.0) 
             verbose && @info "Stopping condition: Eccentricity > 1"
+            model.status = :e_geq_1
             break
         end
 
         if (model.pᵢ₋₁ < 0.0)
             verbose && @info "Stopping condition: SLR > 0"
+            model.status = :p_leq_0
             break
         end
 
         f_GW = (π_inv*(1 + model.eᵢ₋₁)^(1.195)/sqrt(model.pᵢ₋₁^3))
         if f_GW >= f_GW_max_code_units
             verbose && @info "Stopping condition: fGW > fGW_max"
+            model.status = :fGW
             break
         end
 
         if model.pᵢ₋₁ <= 2 * (3 + model.eᵢ₋₁)
             verbose && @info "Stopping condition: ISCO"
+            model.status = :ISCO
             break
         end
 

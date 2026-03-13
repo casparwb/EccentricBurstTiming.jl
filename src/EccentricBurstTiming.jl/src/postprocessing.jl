@@ -16,8 +16,11 @@ get_i(model, idx) = model.i[idx]
 get_V3(model, idx) = model.V3[idx]
 get_a(model, idx) = get_p(model, idx) / (1 .- get_e(model, idx) ^ 2)
 
-to_meters(model, x) = x * model.m₁₂ * Constants.Mconvert
-to_seconds(model, x) = x * model.m₁₂ * Constants.Msolsec
+to_meters(model, x::Number) = x * model.m₁₂ * Constants.Mconvert
+to_seconds(model, x::Number) = x * model.m₁₂ * Constants.Msolsec
+
+to_meters(model, x::AbstractVector) = x .* (model.m₁₂ * Constants.Mconvert)
+to_seconds(model, x::AbstractVector) = x .* (model.m₁₂ * Constants.Msolsec)
 
 function get_arrays(model, N)
     e_array = get_e_array(model, N)
