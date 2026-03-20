@@ -14,8 +14,8 @@ include("equations.jl")
 using .Constants
 
 mutable struct BurstTimingModel{T, vecT}
-    Ω₃::T
-    ι₃::T
+    Ω₃::T # line of nodes
+    ι₃::T # inclination angle w.r.t line of sight
     m₁₂::T
     m₃::T
     M::T
@@ -81,14 +81,15 @@ mutable struct BurstTimingModel{T, vecT}
     end
 end
 
-function get_masses(model::BurstTimingModel)
-    M = model.m₁₂
-    μ = model.η*M
+function get_masses(M, η)
+    μ = η*M
 
     fac = √(M^2 - 4μ*M)/2
 
     return M/2 + fac, M/2 - fac
 end
+
+get_masses(model::BurstTimingModel) = get_masses(model.m₁₂, model.η)
 
 SI_to_geometric_length(M, l) = l / (M * Constants.Mconvert)
 SI_to_geometric_time(M, t) = t / (M * Constants.Msolsec)
@@ -143,11 +144,12 @@ function iterate!(model::BurstTimingModel; do_outer_orbit = false, save_params=t
     return nothing
 end
 
-function observed_burst_time_offsets_due_to_com_motion(model)
+function observed_burst_time_offsets_due_to_com_motion(model, m₁₂=1)
     # com_motion_induced_offset = @. model.R3/model.M*sin(model.iota)*cos(model.V3 + model.lambda)
     # com_motion_induced_offset = self.R3 / self.M * np.sin(self.iota) * np.cos(np.array(self.V3) + self.Lambda)
 
-    return @. model.m₃ / model.M * model.p₃ * sin(model.ι₃) / (1 + model.e * cos(model.V₃)) * cos(model.V₃ + model.ω₃)
+    ΔΩ₃ = model.Ω₃ - model.ω₃
+    return @. model.m₃ / m₁₂ * model.p₃ * sin(model.ι₃) / (1 + model.e₃ * cos(model.V₃)) * cos(model.V₃ - ΔΩ₃)
 end
 
 function get_Rmin(model, η_ratio, m₁₂ = 1)
